@@ -96,6 +96,25 @@ st.markdown(
             height: 20px;
             background-color: white;
         }
+        .input-space {
+        margin-top: 1px;
+        margin-bottom: 1px;
+    }
+        @keyframes dot-blink {
+            0% { content: ""; }
+            33% { content: "."; }
+            66% { content: ".."; }
+            100% { content: "..."; }
+        }
+        .loading-message {
+        margin-top: 1;
+        padding-top: 1px;
+        font-size: 20px;
+        font-weight: bold;
+        white-space: nowrap;
+        animation: dot-blink 1.5s infinite step-start;
+        
+        }
     
     </style>
     """,
@@ -120,6 +139,13 @@ questions = [
 # Initialisation de l'historique de la conversation dans `st.session_state`
 if 'conversation_history' not in st.session_state:
     st.session_state.conversation_history = StreamlitChatMessageHistory()
+
+if 'previous_questions' not in st.session_state:
+    st.session_state.previous_questions = []
+
+# Ajouter une nouvelle question au début de la liste
+def add_question(question):
+    st.session_state.previous_questions.insert(0, question)
 def main():
     text=r"""
     
@@ -4922,7 +4948,7 @@ de mise en jeu de la concurrence.
     st.markdown('<div class="input-space"></div>', unsafe_allow_html=True)
     selected_questions = st.sidebar.radio("****Choisir :****", questions)
         # Afficher toujours la barre de saisie
-    query_input = st.text_input("", key="text_input_query", placeholder="Posez votre question ici...", help="Posez votre question ici...")
+    query_input = st.text_input("", key="query_key",placeholder="Posez votre question ici...", help="Posez votre question ici...")
     st.markdown('<div class="input-space"></div>', unsafe_allow_html=True)
 
     if query_input and query_input not in st.session_state.previous_question:
@@ -4932,9 +4958,20 @@ de mise en jeu de la concurrence.
         query = selected_questions
     else:
         query = ""
+    predefined_question = "Donnez-moi un résumé du rapport"
+
+    loading_message = st.empty()
 
     if query :
         st.session_state.conversation_history.add_user_message(query) 
+        # Vérifier si la question de l'utilisateur contient la question prédéfinie
+        if predefined_question.lower() not in query.strip().lower():
+        # Afficher le message de "Génération de la réponse" si la question est différente
+            loading_message.text("Génération de la réponse...")
+            st.markdown('<div class="loading-message"></div>', unsafe_allow_html=True)
+
+        
+
         if "Donnez-moi un résumé du rapport" in query:
             summary="""Le rapport annuel 2023-2024 de la Cour des comptes du Maroc met en lumière les principales réformes et défis auxquels le pays est confronté dans un contexte mondial marqué par des tensions économiques et climatiques. Il souligne une amélioration des indicateurs économiques, notamment une croissance de 3,4 % et une baisse du déficit budgétaire à 4,4 % du PIB en 2023, grâce à des efforts fiscaux et des réformes structurelles. Cependant, des défis persistent, tels que le stress hydrique, l'optimisation des investissements publics, et la digitalisation insuffisante de l'administration. Le rapport met également en exergue des lacunes dans la gestion des ressources et propose des recommandations pour améliorer l'efficacité des dépenses publiques, la gouvernance et l'impact des réformes sur le citoyen."""
             st.session_state.conversation_history.add_ai_message(summary) 
@@ -4962,7 +4999,14 @@ de mise en jeu de la concurrence.
                 # Votre logique pour traiter les réponses
             #conversation_history.add_user_message(query)
             #conversation_history.add_ai_message(response)
-            st.session_state.conversation_history.add_ai_message(summary)  # Ajouter à l'historique
+            st.session_state.conversation_history.add_ai_message(summary) 
+              
+            #query_input = ""
+
+            loading_message.empty()
+
+
+ # Ajouter à l'historique
             
             # Afficher la question et le résumé de l'assistant
             #conversation_history.add_user_message(query)
@@ -4972,29 +5016,37 @@ de mise en jeu de la concurrence.
                 
             # Format et afficher les messages comme précédemment
         formatted_messages = []
-        previous_role = None 
-        if st.session_state.conversation_history.messages: # Variable pour stocker le rôle du message précédent
-                for msg in conversation_history.messages:
-                    role = "user" if msg.type == "human" else "assistant"
-                    avatar = "🧑" if role == "user" else "🤖"
-                    css_class = "user-message" if role == "user" else "assistant-message"
+        previous_role = None
+        if st.session_state.conversation_history.messages:
+        # Parcourir les messages de manière inversée par paire (question, réponse)
+            messages_pairs = zip(reversed(st.session_state.conversation_history.messages[::2]), 
+                             reversed(st.session_state.conversation_history.messages[1::2]))
 
-                    if role == "user" and previous_role == "assistant":
-                        message_div = f'<div class="{css_class}" style="margin-top: 25px;">{msg.content}</div>'
-                    else:
-                        message_div = f'<div class="{css_class}">{msg.content}</div>'
+            for user_msg, assistant_msg in messages_pairs:
+                role_user = "user"
+                role_assistant = "assistant"
+            
+                avatar_user = "🧑"
+                avatar_assistant = "🤖"
+                css_class_user = "user-message"
+                css_class_assistant = "assistant-message"
+ 
+            # Formater et afficher la question de l'utilisateur et la réponse de l'assistant
+                message_div_user = f'<div class="{css_class_user}">{user_msg.content}</div>'
+                message_div_assistant = f'<div class="{css_class_assistant}">{assistant_msg.content}</div>'
 
-                    avatar_div = f'<div class="avatar">{avatar}</div>'
-                
-                    if role == "user":
-                        formatted_message = f'<div class="message-container user"><div class="message-avatar">{avatar_div}</div><div class="message-content">{message_div}</div></div>'
-                    else:
-                        formatted_message = f'<div class="message-container assistant"><div class="message-content">{message_div}</div><div class="message-avatar">{avatar_div}</div></div>'
-                
-                    formatted_messages.append(formatted_message)
-                    previous_role = role  # Mettre à jour le rôle du message précédent
+                avatar_div_user = f'<div class="avatar">{avatar_user}</div>'
+                avatar_div_assistant = f'<div class="avatar">{avatar_assistant}</div>'
 
-                messages_html = "\n".join(formatted_messages)
-                st.markdown(messages_html, unsafe_allow_html=True)
+                formatted_message_user = f'<div class="message-container user"><div class="message-avatar">{avatar_div_user}</div><div class="message-content">{message_div_user}</div></div>'
+                formatted_message_assistant = f'<div class="message-container assistant"><div class="message-content">{message_div_assistant}</div><div class="message-avatar">{avatar_div_assistant}</div></div>'
+
+                formatted_messages.append(formatted_message_user)
+                formatted_messages.append(formatted_message_assistant)
+          
+        # Afficher les messages formatés
+            messages_html = "\n".join(formatted_messages)
+            st.markdown(messages_html, unsafe_allow_html=True)
+
 if __name__ == '__main__':
     main()
